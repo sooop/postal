@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우편번호 검색</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>우편번호 검색</h1>
+    
+    <div class="search-box">
+      <input 
+        type="text" 
+        id="searchInput" 
+        placeholder="예: 강남구 테헤란로, 판교동 123"
+        autocomplete="off"
+      >
+      <button id="searchBtn">검색</button>
+    </div>
+
+    <div id="loadingIndicator" class="loading hidden">
+      검색 중...
+    </div>
+
+    <div id="results" class="results"></div>
+
+    <div class="footer">
+      <small>우정사업본부 우편번호 검색 서비스 이용</small>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

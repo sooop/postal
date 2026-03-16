@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "우편번호 검색",
+  "version": "1.0.0",
+  "description": "우체국 우편번호를 빠르게 검색합니다",
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.epost.go.kr/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
