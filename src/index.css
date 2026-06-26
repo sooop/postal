@@ -1,24 +1,48 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(222.2 47.4% 11.2%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(222.2 84% 4.9%);
-  --radius: 0.5rem;
+  --color-background:            hsl(40 30% 98%);
+  --color-foreground:            hsl(30 8% 16%);
+  --color-card:                  hsl(0 0% 100%);
+  --color-card-foreground:       hsl(30 8% 16%);
+  --color-popover:               hsl(0 0% 100%);
+  --color-popover-foreground:    hsl(30 8% 16%);
+  --color-primary:               hsl(28 78% 50%);
+  --color-primary-foreground:    hsl(0 0% 100%);
+  --color-secondary:             hsl(36 20% 92%);
+  --color-secondary-foreground:  hsl(30 8% 28%);
+  --color-muted:                 hsl(36 20% 92%);
+  --color-muted-foreground:      hsl(30 6% 46%);
+  --color-accent:                hsl(36 50% 94%);
+  --color-accent-foreground:     hsl(28 55% 30%);
+  --color-destructive:           hsl(0 80% 58%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border:                hsl(36 18% 88%);
+  --color-input:                 hsl(36 18% 88%);
+  --color-ring:                  hsl(28 78% 50%);
+  --radius:                      0.5rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  font-size: 13px;
+  font-family:
+    "Pretendard Variable", Pretendard,
+    -apple-system, "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic",
+    sans-serif;
+  background-color: hsl(40 30% 98%);
+  color: hsl(30 8% 16%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

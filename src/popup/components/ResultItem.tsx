@@ -1,28 +1,54 @@
-import { Badge } from '@/components/ui/badge'
+import { CheckCircle2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { ZipcodeResult } from '@/lib/search'
 
 interface ResultItemProps {
   result: ZipcodeResult
-  onCopy: (text: string) => void
+  onCopy: (zipcode: string) => void
+  isCopied: boolean
 }
 
-export function ResultItem({ result, onCopy }: ResultItemProps) {
+export function ResultItem({ result, onCopy, isCopied }: ResultItemProps) {
   const handleClick = () => {
-    const text = `[${result.zipcode}] ${result.roadAddress}`
-    navigator.clipboard.writeText(text).then(() => onCopy(text))
+    navigator.clipboard.writeText(result.zipcode).then(() => onCopy(result.zipcode))
   }
 
   return (
     <button
-      className="w-full cursor-pointer rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:border-slate-200 hover:bg-slate-50"
+      className={cn(
+        'w-full cursor-pointer rounded-md border px-3 py-2.5 text-left transition-all duration-150',
+        isCopied
+          ? 'border-amber-200 bg-amber-50 hover:bg-amber-100/80'
+          : 'border-transparent hover:border-border hover:bg-accent/60'
+      )}
       onClick={handleClick}
     >
       <div className="flex items-center gap-2">
-        <Badge variant="secondary">{result.zipcode}</Badge>
-        <span className="text-sm font-medium">{result.roadAddress}</span>
+        {/* 우편번호 칩 */}
+        <span className={cn(
+          'shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums tracking-wider',
+          isCopied
+            ? 'bg-amber-500 text-white'
+            : 'bg-secondary text-secondary-foreground'
+        )}>
+          {result.zipcode}
+        </span>
+
+        {/* 도로명 주소 */}
+        <span className="min-w-0 flex-1 truncate text-[13px] leading-snug text-foreground">
+          {result.roadAddress}
+        </span>
+
+        {/* 복사됨 아이콘 */}
+        {isCopied && (
+          <CheckCircle2 size={13} className="shrink-0 text-amber-500" />
+        )}
       </div>
+
       {result.jibunAddress && (
-        <p className="mt-1 pl-1 text-xs text-slate-500">(지번) {result.jibunAddress}</p>
+        <p className="mt-1 ml-[calc(1.5rem+0.5rem)] text-[11px] leading-relaxed text-muted-foreground">
+          (지번) {result.jibunAddress}
+        </p>
       )}
     </button>
   )

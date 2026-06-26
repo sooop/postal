@@ -6,6 +6,7 @@ import { resolve } from 'path'
 import manifest from './manifest.json'
 
 export default defineConfig({
+  base: './',
   plugins: [react(), tailwindcss(), crx({ manifest })],
   resolve: {
     alias: {

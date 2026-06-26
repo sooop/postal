@@ -158,9 +158,8 @@ function displayResults(results) {
 
 // 주소 복사 함수
 window.copyAddress = function(element) {
-  const zipcode = element.querySelector('.zipcode').textContent;
-  const address = element.querySelector('.address').textContent;
-  const text = `[${zipcode}] ${address}`;
+  const zipcode = element.querySelector('.zipcode').textContent.trim();
+  const text = zipcode;
   
   navigator.clipboard.writeText(text).then(() => {
     showCopyNotification();

@@ -4,11 +4,17 @@ export interface ZipcodeResult {
   jibunAddress: string
 }
 
-export async function searchZipcode(query: string): Promise<ZipcodeResult[]> {
+export interface SearchPage {
+  results: ZipcodeResult[]
+  hasMore: boolean
+  nextTargetRow: number
+}
+
+export async function searchZipcode(query: string, targetRow = 1): Promise<SearchPage> {
   const searchUrl = 'https://www.epost.go.kr/search.RetrieveIntegrationNewZipCdList.comm'
 
   const formData = new URLSearchParams({
-    targetRow: '',
+    targetRow: String(targetRow),
     srchZipCd: '',
     srchSido: '',
     srchSgg: '',
@@ -39,10 +45,10 @@ export async function searchZipcode(query: string): Promise<ZipcodeResult[]> {
   }
 
   const html = await response.text()
-  return parseSearchResults(html)
+  return parseSearchResults(html, targetRow)
 }
 
-export function parseSearchResults(html: string): ZipcodeResult[] {
+export function parseSearchResults(html: string, currentTargetRow = 1): SearchPage {
   const results: ZipcodeResult[] = []
 
   try {
@@ -53,7 +59,7 @@ export function parseSearchResults(html: string): ZipcodeResult[] {
     rows.forEach((row, index) => {
       try {
         const zipcodeElement = row.querySelector('th[scope="row"]')
-        const zipcode = zipcodeElement ? zipcodeElement.textContent?.trim() ?? '' : ''
+        const zipcode = zipcodeElement ? (zipcodeElement.textContent?.trim() ?? '') : ''
 
         const addressElement = row.querySelector('td.t_a_l.l_h_18')
         if (addressElement) {
@@ -75,9 +81,26 @@ export function parseSearchResults(html: string): ZipcodeResult[] {
         console.error(`행 ${index} 파싱 오류:`, err)
       }
     })
+
+    // 다음 페이지 여부: 페이지 네비에서 현재 targetRow보다 큰 goPage 값이 있는지 확인
+    const pageLinks = doc.querySelectorAll('ul.table_num a[onclick]')
+    let hasMore = false
+    pageLinks.forEach((link) => {
+      const onclick = link.getAttribute('onclick') ?? ''
+      const m = onclick.match(/goPage\('(\d+)'\)/)
+      if (m) {
+        const row = parseInt(m[1], 10)
+        if (row > currentTargetRow) hasMore = true
+      }
+    })
+
+    return {
+      results,
+      hasMore,
+      nextTargetRow: currentTargetRow + 10,
+    }
   } catch (err) {
     console.error('전체 파싱 오류:', err)
+    return { results, hasMore: false, nextTargetRow: currentTargetRow + 10 }
   }
-
-  return results
 }
