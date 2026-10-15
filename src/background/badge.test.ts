@@ -1,0 +1,15 @@
+import { describe, expect, it } from 'vitest'
+import { badgeView } from './badge'
+
+describe('badgeView', () => {
+  it('차단이 대기 건수보다 우선한다', () => {
+    expect(badgeView(true, 3)).toMatchObject({ text: '!', color: '#dc2626' })
+  })
+  it('대기 건수를 표시하고 99 를 넘으면 줄인다', () => {
+    expect(badgeView(false, 2).text).toBe('2')
+    expect(badgeView(false, 150).text).toBe('99+')
+  })
+  it('아무 것도 없으면 배지를 비운다', () => {
+    expect(badgeView(false, 0).text).toBe('')
+  })
+})
