@@ -1,3 +1,4 @@
+import { MAX_DECISIONS, type DecisionRecord } from './decideCache'
 import type { LearnedRecord } from './learn'
 import type { SearchPage, Source, ZipcodeResult } from './search'
 
@@ -16,7 +17,8 @@ const STORE_SEARCHES = 'searches'
 const STORE_COPIED = 'copied'
 const STORE_LEARNED = 'learned'
 const STORE_PAGES = 'pages'
-const DB_VERSION = 5
+const STORE_DECISIONS = 'decisions'
+const DB_VERSION = 6
 
 /** 검색 이력(최근 검색 목록)의 캐시 결과를 그대로 쓰는 기간. 지나면 다시 조회한다 */
 export const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -45,6 +47,8 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_LEARNED)) db.createObjectStore(STORE_LEARNED, { keyPath: 'key' })
       // v5: 조회처 페이지 응답 캐시(팝업 검색과 앱 lookup 이 함께 쓴다)
       if (!db.objectStoreNames.contains(STORE_PAGES)) db.createObjectStore(STORE_PAGES, { keyPath: 'key' }).createIndex('at', 'at')
+      // v6: 앱 판정(확률) 결과를 검색어 단위로 기억
+      if (!db.objectStoreNames.contains(STORE_DECISIONS)) db.createObjectStore(STORE_DECISIONS, { keyPath: 'key' }).createIndex('at', 'at')
     }
 
     req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
@@ -113,10 +117,11 @@ export async function listRecentFull(limit = 8): Promise<SearchRecord[]> {
 export async function clearAll(): Promise<void> {
   const db = await openDB()
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([STORE_SEARCHES, STORE_COPIED, STORE_PAGES], 'readwrite')
+    const tx = db.transaction([STORE_SEARCHES, STORE_COPIED, STORE_PAGES, STORE_DECISIONS], 'readwrite')
     tx.objectStore(STORE_SEARCHES).clear()
     tx.objectStore(STORE_COPIED).clear()
     tx.objectStore(STORE_PAGES).clear()
+    tx.objectStore(STORE_DECISIONS).clear()
     tx.oncomplete = () => { db.close(); resolve() }
     tx.onerror = () => reject(tx.error)
   })
@@ -244,6 +249,43 @@ export async function prunePageCache(max = 300): Promise<void> {
     const countReq = store.count()
     countReq.onsuccess = () => {
       let toDelete = countReq.result - max
+      if (toDelete <= 0) return
+      const cur = store.index('at').openCursor(null, 'next')
+      cur.onsuccess = () => {
+        const c = cur.result
+        if (c && toDelete-- > 0) { c.delete(); c.continue() }
+      }
+    }
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+// ─── decisions store (앱 판정 결과: 검색어 → 후보 목록 서명 + 확률) ──────────────
+
+function decisionsTx<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  return openDB().then((db) => new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE_DECISIONS, mode)
+    const req = work(tx.objectStore(STORE_DECISIONS))
+    req.onerror = () => reject(req.error)
+    tx.oncomplete = () => { db.close(); resolve(req.result) }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  }))
+}
+
+export const getDecision = (key: string): Promise<DecisionRecord | undefined> => decisionsTx('readonly', (s) => s.get(key))
+export const deleteDecision = (key: string): Promise<undefined> => decisionsTx('readwrite', (s) => s.delete(key))
+
+/** 저장하고, 오래된 것부터 지워 MAX_DECISIONS 건만 남긴다 */
+export async function putDecision(rec: DecisionRecord): Promise<void> {
+  await decisionsTx('readwrite', (s) => s.put(rec))
+  const db = await openDB()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_DECISIONS, 'readwrite')
+    const store = tx.objectStore(STORE_DECISIONS)
+    const countReq = store.count()
+    countReq.onsuccess = () => {
+      let toDelete = countReq.result - MAX_DECISIONS
       if (toDelete <= 0) return
       const cur = store.index('at').openCursor(null, 'next')
       cur.onsuccess = () => {

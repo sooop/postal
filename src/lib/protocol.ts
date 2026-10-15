@@ -95,6 +95,12 @@ export interface Candidate {
   detail?: string
   /** 추가 필드(v1 호환): 구우편번호 6자리 숫자 */
   oldZip?: string
+  /** 추가 필드(v1 호환, 입력 분석 검색일 때): 건물(단지)명 */
+  name?: string
+  /** 추가 필드(v1 호환): 단지 안 동 목록 원문(예: '101동~103동,105동~108동') */
+  dongs?: string
+  /** 추가 필드(v1 호환): 확장이 입력을 분석해 매긴 점수와 근거. 후보는 점수 내림차순으로 온다 */
+  match?: { score: number; why: string[] }
 }
 
 export interface LookupMeta {
@@ -104,6 +110,10 @@ export interface LookupMeta {
   queryUsed: string
   total: number
   truncated: boolean
+  /** 추가 필드(v1 호환): 입력 분석 검색으로 조회했는지 */
+  analyzed?: boolean
+  /** 추가 필드: 분석 검색에서 확장이 확신하는 1순위가 있는지 */
+  confident?: boolean
 }
 
 /** lookup 조회처 선택(추가 필드): 기본 epost, auto 는 우체국에 후보가 없을 때 juso 로 대체 */
@@ -116,6 +126,8 @@ export interface LookupRequest {
   limit: number
   timeoutMs: number
   source: LookupSource
+  /** false 면 입력 분석 없이 searchText 를 그대로 조회한다(기본: oldAddr 가 있으면 분석 검색) */
+  analyze?: boolean
 }
 
 export type LookupValidation =
@@ -171,5 +183,11 @@ export function validateLookup(msg: Record<string, unknown>): LookupValidation {
     source = o.source
   }
 
-  return { ok: true, req: { searchText, oldAddr, oldZip, limit, timeoutMs, source } }
+  let analyze = true
+  if (o.analyze !== undefined) {
+    if (typeof o.analyze !== 'boolean') return bad('analyze 형식 오류')
+    analyze = o.analyze
+  }
+
+  return { ok: true, req: { searchText, oldAddr, oldZip, limit, timeoutMs, source, analyze } }
 }

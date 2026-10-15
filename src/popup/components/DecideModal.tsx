@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { requestDecide, cancelDecide, type DecideOutcome, type DecideStage } from '@/lib/decideClient'
-import { reconcile, type Engine, type ScoreView, type Signals } from '@/lib/decide'
+import { prepareCandidates, reconcile, recommend, DEFAULT_THRESHOLDS, type Engine, type ScoreView, type Signals, type Thresholds } from '@/lib/decide'
+import { ago, decisionKey, isReusable, toRecord } from '@/lib/decideCache'
+import { getDecision, putDecision } from '@/lib/db'
 import { formatCopy, type CopyFormat } from '@/lib/copy'
 import { priorFor, type LearnedRecord } from '@/lib/learn'
 import type { ZipcodeResult } from '@/lib/search'
@@ -18,6 +20,8 @@ export interface DecideModalProps {
   learned?: LearnedRecord | null
   /** 선택·복사할 때의 복사 형식 */
   copyFormat?: CopyFormat
+  /** 추천 판단 기준(저장된 결과를 다시 쓸 때 현재 설정으로 추천을 다시 계산한다) */
+  thresholds?: Thresholds
   onClose: () => void
   /** 후보 선택·복사. 우편번호 복사 후 호출된다(학습 저장 연결 지점) */
   onSelect: (result: ZipcodeResult) => void
@@ -46,9 +50,11 @@ function chips(s?: Signals): { text: string; good: boolean }[] {
   return out
 }
 
-export function DecideModal({ query, results, aiEnabled, learned, copyFormat = 'zip', onClose, onSelect, onOpenSettings }: DecideModalProps) {
+export function DecideModal({ query, results, aiEnabled, learned, copyFormat = 'zip', thresholds = DEFAULT_THRESHOLDS, onClose, onSelect, onOpenSettings }: DecideModalProps) {
   const [stage, setStage] = useState<DecideStage>('connecting')
   const [outcome, setOutcome] = useState<DecideOutcome | null>(null)
+  /** 저장된 판정 결과를 다시 쓰는 중이면 그 시각 */
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const runRef = useRef(0)
   const pendingRef = useRef(false)
@@ -70,11 +76,27 @@ export function DecideModal({ query, results, aiEnabled, learned, copyFormat = '
     }
     if (runRef.current !== id) return
     pendingRef.current = false
+    setSavedAt(null)
     setOutcome(res)
+    // 성공한 판정은 검색어 단위로 기억해 두었다가 같은 후보 목록이면 다시 쓴다
+    if (res.ok) void putDecision(toRecord(query, prepareCandidates(results).candidates, res.view, Date.now())).catch(console.error)
   }, [query, results, aiEnabled, learned])
 
-  useEffect(() => {
+  /** 같은 검색어·같은 후보 목록으로 저장된 판정이 있으면 요청 없이 보여 주고, 없으면 앱에 요청한다 */
+  const start = useCallback(async () => {
+    const { candidates, byRef } = prepareCandidates(results)
+    const rec = await getDecision(decisionKey(query)).catch(() => undefined)
+    if (isReusable(rec, candidates)) {
+      setSavedAt(rec.at)
+      setOutcome({ ok: true, view: { ...rec.view, recommendedRef: recommend(rec.view.scores, thresholds) }, byRef })
+      return
+    }
     void run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    void start()
     return () => {
       runRef.current++
       if (pendingRef.current) { pendingRef.current = false; cancelDecide() }
@@ -149,6 +171,11 @@ export function DecideModal({ query, results, aiEnabled, learned, copyFormat = '
 
           {outcome?.ok && (
             <div className="flex flex-col gap-2">
+              {savedAt !== null && (
+                <p className="rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] text-sky-800">
+                  저장된 판정 결과입니다(요청 {ago(savedAt)}). 후보가 바뀌었거나 다시 확인하려면 '다시 요청'을 누르세요.
+                </p>
+              )}
               {outcome.view.summary && (
                 <p className="text-[12px] leading-snug text-foreground">{outcome.view.summary}</p>
               )}
@@ -180,7 +207,10 @@ export function DecideModal({ query, results, aiEnabled, learned, copyFormat = '
         </div>
 
         {!pending && (
-          <div className="flex justify-end border-t border-border px-3 py-2">
+          <div className="flex justify-end gap-1 border-t border-border px-3 py-2">
+            {outcome?.ok && (
+              <Button variant="outline" size="sm" className="text-[12px]" aria-label="앱에 다시 요청" onClick={() => void run()}>다시 요청</Button>
+            )}
             <Button variant="ghost" size="sm" className="text-[12px]" aria-label="닫기" onClick={close}>닫기</Button>
           </div>
         )}

@@ -91,7 +91,7 @@ describe('수용 기준', () => {
 
   it('4-b. 검색어를 만들 수 없는 oldAddr 만 오면 unsupported_query', async () => {
     const t = setup(ok(empty))
-    t.session.handle(lookup('e2', { oldAddr: '어딘가 어떤 건물' }))
+    t.session.handle(lookup('e2', { oldAddr: '서울특별시' }))
     const r = await t.result('e2')
     expect(r).toMatchObject({ ok: false, error: { code: 'unsupported_query', retryable: false } })
   })

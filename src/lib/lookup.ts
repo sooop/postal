@@ -1,6 +1,9 @@
 import { BlockedError, HttpError } from './epost'
 import { ParseFailedError, PARSER_VERSION } from './normalize'
-import { isOldZipQuery } from './provider'
+import { parseInput } from './match/parse'
+import { shouldUseSmart } from './match/plan'
+import { smartSearch } from './match/smart'
+import { isOldZipQuery, type Fetchers } from './provider'
 import {
   ERRORS,
   type BridgeError, type Candidate, type LookupMeta, type LookupRequest,
@@ -104,11 +107,93 @@ interface SourceResult {
   hasMore: boolean
 }
 
+/** 분석에 쓸 입력 원문: 앱이 보낸 구주소 원문(건물명·동까지 포함)을 우선하고, 구우편번호가 따로 오면 앞에 붙인다 */
+function analysisInput(req: LookupRequest): string | undefined {
+  if (req.analyze === false || !req.oldAddr) return undefined
+  const zip = req.oldZip ? `${req.oldZip.slice(0, 3)}-${req.oldZip.slice(3)} ` : ''
+  const text = `${zip}${req.oldAddr}`
+  return shouldUseSmart(parseInput(text)) ? text : undefined
+}
+
+/**
+ * 입력 분석 검색: 구주소 원문을 지역·지번·도로명·건물명·동으로 분해해 여러 검색어를 우체국몰·도로명주소에 보내고,
+ * 도로명주소 단위로 합쳐 점수순으로 돌려준다. 앱이 보낸 searchText 는 마지막 검색어로 함께 쓴다.
+ */
+async function runSmartLookup(
+  req: LookupRequest,
+  input: string,
+  deps: LookupDeps,
+  signal: AbortSignal,
+): Promise<LookupOutcome> {
+  const retrying = (source: Source): Fetchers[Source] => async (keyword, pageIdx, pageSize) => {
+    try {
+      return await deps.fetchPage(keyword, pageIdx, pageSize, source)
+    } catch (err) {
+      // 내부 자동 재시도는 네트워크성 오류에 한해 최대 1회
+      if (!isRetryable(err) || signal.aborted) throw err
+      await deps.throttle()
+      return deps.fetchPage(keyword, pageIdx, pageSize, source)
+    }
+  }
+  const fetchers: Fetchers = { epost: retrying('epost'), juso: retrying('juso') }
+  const started = deps.now()
+
+  try {
+    const r = await smartSearch(fetchers, input, {
+      mode: req.source === 'juso' ? 'juso' : 'auto',
+      pageSize: LOOKUP_PAGE_SIZE,
+      stopWhenConfident: true,
+      extraQueries: req.searchText ? [req.searchText] : [],
+      // 제한 시간의 60% 가 지나면 새 검색어를 시작하지 않는다(진행 중이던 결과는 돌려준다)
+      deadline: started + req.timeoutMs * 0.6,
+      now: deps.now,
+      signal,
+      throttle: deps.throttle,
+      onQuery: (_q, i, n) => (i === 0 ? deps.onProgress?.('searching') : deps.onProgress?.('fetching_page', `${i + 1}/${n}`)),
+    })
+    deps.onProgress?.('parsing')
+
+    const candidates: Candidate[] = []
+    for (const c of r.ranked) {
+      const base = toCandidate(c.result)
+      if (!base) continue
+      if (c.result.buildingName) base.name = c.result.buildingName
+      if (c.result.dongText) base.dongs = c.result.dongText.slice(0, 200)
+      base.match = { score: Math.round(c.score * 10) / 10, why: c.why.slice(0, 8) }
+      candidates.push(base)
+    }
+    const source: Source = candidates.length > 0 && r.ranked[0]?.result.source === 'juso' ? 'juso' : 'epost'
+    return {
+      ok: true,
+      candidates: candidates.slice(0, req.limit),
+      meta: {
+        source,
+        fetchedAt: deps.now(),
+        parserVersion: PARSER_VERSION,
+        queryUsed: r.queries.slice(0, r.queriesRun).join(' | ').slice(0, 200),
+        total: candidates.length,
+        truncated: candidates.length > req.limit,
+        analyzed: true,
+        confident: r.confident,
+      },
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: toBridgeError(err, signal),
+      meta: { source: req.source === 'juso' ? 'juso' : 'epost', parserVersion: PARSER_VERSION, queryUsed: input.slice(0, 200) },
+    }
+  }
+}
+
 export async function runLookup(
   req: LookupRequest,
   deps: LookupDeps,
   signal: AbortSignal,
 ): Promise<LookupOutcome> {
+  const analysis = analysisInput(req)
+  if (analysis) return runSmartLookup(req, analysis, deps, signal)
+
   const keyword = resolveKeyword(req)
   if (!keyword) {
     return { ok: false, error: ERRORS.unsupported_query('검색어를 만들 수 없는 입력입니다(동·리 + 번지를 입력해 주세요)') }

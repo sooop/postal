@@ -439,6 +439,7 @@ IndexedDB 를 못 쓰면 메모리로 폴백하고 배너("학습 내용이 저�
 | 높음 | 조회처 선택 | `options.source:"auto"` 를 보내면 우체국 후보가 0건일 때만 juso 로 대체합니다(확장 `features` 에 `jusoSearch` 가 있을 때). 결과 카드에 `meta.source`(`epost`/`juso`) 배지를 표시하세요. 대체 사례: 행정구역 변경(`능평리`→`능평동`), 건물명 검색 |
 | 높음 | 앱의 검색어 생성(normAddr) | 건물명을 `rest` 로 넘겨 검색어에서 빼고, 아파트 동(`101동`)을 행정동으로 오인합니다. 번지 없는 입력(`송파구 가락동 헬리오시티 501동`)에서 정답이 후보에 안 들어옵니다. 확장은 이미 입력을 지역·지번·도로명·건물명·동으로 분해해 검색합니다(`src/lib/match/`). 앱도 건물명을 검색어에 살리고 아파트 동과 행정동을 구분하세요 |
 | 중간 | `decide` 후보의 `name`·`dongs`·`hint` | 확장이 건물명, 단지 동 목록, 로컬 점수를 추가로 보냅니다(v1 호환, 모르면 무시). 건물명 유사도와 `dongs`(구주소 동이 목록에 없으면 감점)를 점수화에 쓰면 정확도가 오릅니다. 명세: `protocol-v1-decide.md` |
+| 중간 | `lookup` 후보의 `name`·`dongs`·`match` | `oldAddr` 가 있으면 확장이 입력을 분석해 검색하고(건물명·동 포함) 후보를 점수순으로 돌려줍니다. `match.score`·`match.why` 는 확장 내부 점수이므로 앱 점수화의 참고로만 쓰세요. 앱이 `searchText` 를 만들 필요가 줄었습니다. 명세: `protocol-v1-notes.md` 의 "입력 분석 검색" |
 | 중간 | `oldZip` 활용 | 후보에 `oldZip` 이 오므로 입력 구우편번호와 비교해 `scoreCandidate` 에 가산·감점하면 정확도가 오릅니다(현재는 `decide` 의 로컬 판정에서만 씀) |
 | 중간 | 연동 진단 패널 제거 | "TEMP-DIAG" 블록(`diagLog`, `renderDiag`, 하단 `#diag`)은 임시입니다. 운영 확정 뒤 제거하세요 |
 | 낮음 | `rate_limited` 의 `retryAfterMs` | 현재 일괄은 `rate_limited` 에서 멈춥니다. `retryAfterMs` 만큼 기다렸다 이어 가는 옵션을 검토할 수 있습니다 |

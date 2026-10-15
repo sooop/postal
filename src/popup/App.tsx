@@ -340,6 +340,7 @@ export function App() {
           aiEnabled={settings.aiEnabled}
           learned={learned}
           copyFormat={settings.copyFormat}
+          thresholds={settings.thresholds}
           onClose={() => setDecideOpen(false)}
           onSelect={handleCopy}
           onOpenSettings={() => { setDecideOpen(false); setShowSettings(true) }}

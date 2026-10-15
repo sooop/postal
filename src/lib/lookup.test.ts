@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { extractSearchText, resolveKeyword, runLookup, toCandidates, type LookupDeps } from './lookup'
 import { validateLookup, type LookupRequest, type LookupSource } from './protocol'
+import { BlockedError } from './epost'
 import type { SearchPage, Source, ZipcodeResult } from './search'
 
 describe('extractSearchText', () => {
@@ -133,5 +134,67 @@ describe('validateLookup source', () => {
     expect(validateLookup(msg(undefined))).toMatchObject({ ok: true, req: { source: 'epost' } })
     expect(validateLookup(msg({ source: 'auto' }))).toMatchObject({ ok: true, req: { source: 'auto' } })
     expect(validateLookup(msg({ source: 'x' }))).toMatchObject({ ok: false })
+  })
+})
+
+describe('runLookup 입력 분석 검색(oldAddr)', () => {
+  const row = (zip: string, road: string, name: string, extra: Partial<ZipcodeResult> = {}): ZipcodeResult => ({
+    zipcode: zip, roadAddress: road, jibunAddress: '경기도 오산시 금암동 1', buildingName: name, ...extra,
+  })
+  const page = (source: Source, rows: ZipcodeResult[]): SearchPage => ({ results: rows, hasMore: false, nextTargetRow: 2, total: rows.length, source })
+  const good = row('18109', '경기도 오산시 여계산로 7', '금암마을 휴먼시아 데시앙', { dongText: '101동~120동' })
+  const other = row('18110', '경기도 오산시 수청로 209', '금암마을휴먼시아')
+  const run = (req: Partial<LookupRequest>, fetchPage: LookupDeps['fetchPage']) =>
+    runLookup(
+      { oldAddr: '경기도 오산시 금암동 금암마을휴먼시아데시앙6단지아파트 105동', limit: 10, timeoutMs: 5000, source: 'epost', ...req },
+      { fetchPage, throttle: async () => undefined, now: () => 1 },
+      new AbortController().signal,
+    )
+
+  it('oldAddr 가 있으면 건물명까지 분석해 여러 검색어로 조회하고 점수순 후보와 근거를 돌려준다', async () => {
+    const keywords: string[] = []
+    const r = await run({}, async (kw, _i, _s, src) => { keywords.push(kw); return page(src, [other, good]) })
+    expect(new Set(keywords).size).toBeGreaterThan(1)
+    expect(keywords.some((k) => k.includes('금암마을'))).toBe(true)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.candidates.map((c) => c.zip5)).toEqual(['18109', '18110'].sort((a) => (a === '18109' ? -1 : 1)))
+      expect(r.candidates[0]).toMatchObject({ name: '금암마을 휴먼시아 데시앙', dongs: '101동~120동', match: { score: expect.any(Number) } })
+      expect(r.meta).toMatchObject({ analyzed: true, parserVersion: expect.any(String) })
+    }
+  })
+
+  it('analyze:false 이거나 oldAddr 가 없으면 기존처럼 searchText 한 번만 조회한다', async () => {
+    for (const req of [{ analyze: false, searchText: '금암동 1' }, { oldAddr: undefined, searchText: '금암동 1' }]) {
+      const keywords: string[] = []
+      await run(req, async (kw, _i, _s, src) => { keywords.push(kw); return page(src, [good]) })
+      expect(keywords).toEqual(['금암동 1'])
+    }
+  })
+
+  it('앱이 보낸 searchText 도 마지막 검색어로 함께 쓴다', async () => {
+    const keywords: string[] = []
+    await run({ searchText: '오산시 금암동' }, async (kw, _i, _s, src) => { keywords.push(kw); return page(src, []) })
+    expect(keywords).toContain('오산시 금암동')
+  })
+
+  it('juso 를 지정하면 juso 만 쓴다', async () => {
+    const sources = new Set<Source>()
+    await run({ source: 'juso' }, async (_k, _i, _s, src) => { sources.add(src); return page(src, [good]) })
+    expect([...sources]).toEqual(['juso'])
+  })
+
+  it('모든 조회가 실패하면 빈 결과가 아니라 오류로 알린다(차단 포함)', async () => {
+    const r = await run({}, async () => { throw new BlockedError() })
+    expect(r).toMatchObject({ ok: false, error: { code: 'blocked' } })
+  })
+
+  it('일부 검색어만 실패하면 성공한 결과로 이어간다', async () => {
+    let n = 0
+    const r = await run({}, async (_k, _i, _s, src) => {
+      if (n++ === 0) throw new TypeError('fetch failed')
+      return page(src, [good])
+    })
+    expect(r.ok).toBe(true)
   })
 })
