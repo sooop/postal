@@ -1,4 +1,5 @@
 // 단서 분해 → 다중 검색 → 병합·점수화를 묶는 검색 계층. 조회처는 provider 를 통해 부른다.
+import { cleanInput } from '../input'
 import { isOldZipQuery, searchPage, type Fetchers } from '../provider'
 import type { SearchMode, ZipcodeResult } from '../search'
 import { buildQueries, hasOnlyZip } from './plan'
@@ -66,7 +67,7 @@ export async function smartSearch(fetchers: Fetchers, raw: string, o: SmartOptio
   const base = hasOnlyZip(parsed) ? [`${parsed.oldZip!.slice(0, 3)}-${parsed.oldZip!.slice(3)}`] : buildQueries(parsed)
   const queries = [...base]
   for (const q of o.extraQueries ?? []) {
-    const t = q.trim()
+    const t = cleanInput(q)
     if (t.length >= 2 && !queries.includes(t)) queries.push(t)
   }
   queries.splice(MAX_QUERIES)

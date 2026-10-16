@@ -1,6 +1,6 @@
 // 입력 문자열에서 "알 수 있는 단서"만 뽑는다. 전체 주소를 받는다고 가정하지 않는다:
 // 지역·지번·도로명·건물명·동 중 있는 것만 채우고 나머지는 비워 둔다.
-import { normalizeDigits } from '../input'
+import { cleanInput } from '../input'
 import { isEmdLike, isSido, isSigungu } from '../regions'
 
 export interface ParsedInput {
@@ -77,7 +77,7 @@ function stripUnits(text: string): { rest: string; aptDong?: string } {
 }
 
 export function parseInput(raw: string): ParsedInput {
-  const cleaned = normalizeDigits(raw).replace(/["“”]/g, ' ').replace(/\s+/g, ' ').trim()
+  const cleaned = cleanInput(raw)
   const { rest: noZip, oldZip, zip5 } = takeZips(cleaned)
   const { rest, aptDong } = stripUnits(noZip)
 
@@ -85,6 +85,16 @@ export function parseInput(raw: string): ParsedInput {
   const nameTokens: string[] = []
   const toks = rest.split(' ').filter(Boolean)
 
+  // 알려진 한계(의도적으로 보류): 지역은 건물명이 시작되기 전에만 인식한다. '경남아너스빌 김포' 처럼 지역이 뒤에 오면
+  // 건물명의 일부가 되어 지역 가점·감점이 빠지고 건물명 유사도도 떨어진다('김포 경남아너스빌' 과 결과가 달라진다).
+  // 뒤쪽 지역 토큰을 떼어 인식하려면 지역명이 브랜드·일반 단어와 겹치는 문제를 먼저 풀어야 한다(회귀 위험):
+  //  - 건물명 자체가 지역명인 경우(실제 조회 데이터): '레지던트 유닛 세종', '강동 롯데캐슬퍼스트아파트', '관악 우성아파트'
+  //  - 지역명으로 시작하는 건물·브랜드: 신안(신안아파트), 상록(상록수), 화성(화성파크), 장안, 서원, 영광, 동해, 광명, 수영, 수정, 수지
+  //  - 위 단어는 공백으로 떨어져 한 토큰이 되면 지역으로 오인된다(예: '신안 인스빌' → 시군구 신안군). 현재도 앞쪽 위치에선
+  //    같은 위험이 있고, 지역 불일치는 −4 로 크게 감점하므로 오인하면 정답이 밀린다. 뒤쪽까지 넓히면 노출이 커진다.
+  //  - 그 밖에 일반 단어와 겹칠 소지가 큰 이름(목록: regions.ts): 동해·남해(바다), 태백·고성·인제·장수·영광·무안·성주·보성·진도,
+  //    수정·수영·수지·연수·청원·상록·단원·서원·유성·광산·대덕·중원·동안·성산·사상.
+  // 도입한다면 '뒤쪽 위치 + 목록 일치 + 남는 건물명 2글자 이상 + 시·군·구 접미사가 붙었거나 시도·긴 이름만' 같은 보수적 조건과 골드셋 회귀 확인이 필요하다.
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i]
     const nameStarted = nameTokens.length > 0

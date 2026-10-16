@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterResults, fuzzyScore, highlightSegments } from './fuzzy'
+import { filterRanked, filterResults, fuzzyScore, highlightSegments } from './fuzzy'
 import type { ZipcodeResult } from './search'
 
 const mk = (zipcode: string, roadAddress: string, jibunAddress = '', detail?: string): ZipcodeResult => ({
@@ -57,5 +57,26 @@ describe('highlightSegments', () => {
   it('빈 질의나 불일치는 그대로', () => {
     expect(join(highlightSegments('테헤란로', ''))).toBe('테헤란로')
     expect(join(highlightSegments('테헤란로', '부산'))).toBe('테헤란로')
+  })
+})
+
+describe('filterRanked', () => {
+  const scored = (zipcode: string, road: string, name: string, score: number): ZipcodeResult =>
+    ({ ...mk(zipcode, road), buildingName: name, match: { score, why: [] } })
+  it('건물명도 필터 대상', () => {
+    expect(filterResults([scored('1', '서울특별시 강남구 A로 1', '래미안', 5)], '래미안')).toHaveLength(1)
+  })
+  it('점수가 있으면 점수 + 필터 가점순(시 이름 + 건물명 두 키워드)', () => {
+    const list = [
+      scored('1', '경기도 고양시 일산동구 A로 1', '우성아파트', 6),
+      scored('2', '경기도 고양시 일산서구 B로 2', '우성아파트', 6.5),
+    ]
+    const out = filterRanked(list, '일산동 우성')
+    expect(out.map((x) => x.result.zipcode)).toEqual(['1'])
+    expect(out[0].score).toBeGreaterThan(6)
+  })
+  it('가점 때문에 원래 점수가 높은 후보를 앞지르지 않는 한 점수순 유지', () => {
+    const list = [scored('1', '서울 A로 1', '가나다', 9), scored('2', '서울 B로 2', '가나다', 4)]
+    expect(filterRanked(list, '가나다').map((x) => x.result.zipcode)).toEqual(['1', '2'])
   })
 })

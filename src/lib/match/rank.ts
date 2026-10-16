@@ -1,6 +1,7 @@
 // 여러 검색 결과를 도로명주소(앞주소) 단위로 합치고, 입력에서 알 수 있는 신호만으로 점수를 매긴다.
 // 입력에 없는 신호는 0점이며 감점하지 않는다(부분 입력을 불리하게 만들지 않기 위해).
 import type { ZipcodeResult } from '../search'
+import { sidoAliases } from '../regions'
 import { nameKey, nameNumbers, type ParsedInput } from './parse'
 
 export interface RankedCandidate {
@@ -86,7 +87,8 @@ export function mergeResults(lists: ZipcodeResult[][]): { result: ZipcodeResult;
   return [...map.values()]
 }
 
-const base = (t: string): string => t.replace(/(특별시|광역시|특별자치시|특별자치도|시|군|구|도)$/, '')
+// 접미사를 뗀 이름이 한 글자가 되면('대구'→'대', '중구'→'중') 떼지 않는다
+const base = (t: string): string => { const b = t.replace(/(특별시|광역시|특별자치시|특별자치도|시|군|구|도)$/, ''); return b.length >= 2 ? b : t }
 
 /** 사용자가 기억한 선택(신우편번호 + 도로명) */
 export interface LearnedRef { zip5: string; road: string }
@@ -100,7 +102,11 @@ export function scoreCandidate(p: ParsedInput, c: { result: ZipcodeResult; hits:
   // 지역: 입력에 있는데 후보에 없으면 감점, 있으면 소폭 가점
   const regions = [...(p.sido ? [p.sido] : []), ...p.sigungu]
   if (regions.length) {
-    const miss = regions.filter((t) => base(t).length >= 2 && !text.includes(base(t)))
+    const miss = regions.filter((t) => {
+      // 시도는 정식 명칭·줄임말 중 하나라도 후보에 있으면 일치('경북' ↔ '경상북도')
+      const names = sidoAliases(t)
+      return names.length ? !names.some((n) => text.includes(n)) : base(t).length >= 2 && !text.includes(base(t))
+    })
     if (miss.length) { s -= w.regionOut; why.push('지역 불일치') } else { s += w.region; why.push('지역') }
   }
   if (p.roadName && p.roadNo && roadTail(r.roadAddress) === ns(`${p.roadName}${p.roadNo}`)) { s += w.road; why.push('도로명 일치') }
@@ -136,6 +142,22 @@ export function scoreCandidate(p: ParsedInput, c: { result: ZipcodeResult; hits:
 
 export function rankResults(p: ParsedInput, lists: ZipcodeResult[][], w: Weights = DEFAULT_WEIGHTS, learned: readonly LearnedRef[] = []): RankedCandidate[] {
   return mergeResults(lists).map((c) => scoreCandidate(p, c, w, learned)).sort((a, b) => b.score - a.score)
+}
+
+/** 점수 → 확률 변환 상수: 온도(클수록 완만)와 '후보 중 정답 없음'에 해당하는 기준 점수 */
+export const PROB = { temperature: 2, noneScore: 5 } as const
+
+/**
+ * 후보 점수를 확률로 바꾼다(softmax). '정답 없음' 몫(noneScore)을 함께 두므로 모든 후보 점수가 낮으면
+ * 확률도 낮아진다. 점수는 보정되지 않은 가중치 합이라 정답 데이터로 temperature·noneScore 를 맞춰야
+ * 통계적 확률이 된다(지금은 isConfident 기준 — 1위 5점 이상·2위와 2.5점 차 — 과 비슷한 눈금).
+ */
+export function toProbabilities(scores: readonly number[], t: number = PROB.temperature, none: number = PROB.noneScore): number[] {
+  if (scores.length === 0) return []
+  const m = Math.max(none, ...scores)
+  const exp = scores.map((s) => Math.exp((s - m) / t))
+  const total = exp.reduce((a, b) => a + b, Math.exp((none - m) / t))
+  return exp.map((e) => e / total)
 }
 
 /** 1위가 충분히 앞서는지: 점수 하한과 2위와의 격차 */

@@ -3,7 +3,7 @@ import { isEmdLike, isSido, isSigungu } from '../regions'
 import type { ZipcodeResult } from '../search'
 import { buildQueries, hasOnlyZip, shouldUseSmart } from './plan'
 import { parseInput } from './parse'
-import { dongNumbers, isConfident, mergeResults, rankResults, roadTail } from './rank'
+import { dongNumbers, isConfident, mergeResults, rankResults, roadTail, scoreCandidate, toProbabilities } from './rank'
 
 describe('regions', () => {
   it('시·군·구 목록으로만 지역을 판별한다', () => {
@@ -109,5 +109,37 @@ describe('rank', () => {
     const a = r({ oldZipcode: '121865' })
     const b = r({ roadAddress: '서울특별시 마포구 월드컵로 1', oldZipcode: '121999' })
     expect(rankResults(p, [[b, a]])[0].result.oldZipcode).toBe('121865')
+  })
+})
+
+describe('toProbabilities', () => {
+  it('빈 입력은 빈 배열', () => expect(toProbabilities([])).toEqual([]))
+  it('합은 1 미만(정답 없음 몫 존재)이고 점수가 높을수록 크다', () => {
+    const p = toProbabilities([8, 3, 0])
+    expect(p[0]).toBeGreaterThan(p[1])
+    expect(p[1]).toBeGreaterThan(p[2])
+    expect(p.reduce((a, b) => a + b, 0)).toBeLessThan(1)
+  })
+  it('확신 기준(1위 5점·격차 2.5)을 넘기는 1위는 과반, 모두 낮으면 낮은 확률', () => {
+    expect(toProbabilities([9, 2])[0]).toBeGreaterThan(0.7)
+    expect(toProbabilities([-2, -3])[0]).toBeLessThan(0.05)
+  })
+  it('큰 점수에서도 오버플로 없이 유한', () => expect(toProbabilities([1000, 990])[0]).toBeCloseTo(0.9933, 3))
+})
+
+describe('시도만 있는 입력(대구 그린빌)', () => {
+  const p = parseInput('대구 그린빌')
+  const mk = (road: string, name: string) => ({ result: r({ roadAddress: road, jibunAddress: road, buildingName: name }), hits: 1 })
+  it('시도를 붙인 검색어를 만든다', () => expect(buildQueries(p)).toEqual(['대구 그린빌', '그린빌']))
+  it('다른 시도 후보는 지역 불일치로 감점되어 해당 지역 후보보다 낮다', () => {
+    const gw = scoreCandidate(p, mk('강원특별자치도 춘천시 A로 1', '그린빌'))
+    const dg = scoreCandidate(p, mk('대구광역시 수성구 B로 2', '그린빌아파트'))
+    expect(gw.why).toContain('지역 불일치')
+    expect(dg.why).toContain('지역')
+    expect(dg.score).toBeGreaterThan(gw.score)
+  })
+  it('줄임말 시도(경북)는 정식 명칭(경상북도) 후보와 일치로 본다', () => {
+    const s = scoreCandidate(parseInput('경북 그린빌'), mk('경상북도 경주시 A로 1', '그린빌'))
+    expect(s.why).toContain('지역')
   })
 })

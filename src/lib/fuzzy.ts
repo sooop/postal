@@ -64,19 +64,54 @@ export function fuzzyScore(haystack: string, query: string): number {
 }
 
 export function resultHaystack(r: ZipcodeResult): string {
-  return [r.zipcode, r.oldZipcode, r.roadAddress, r.jibunAddress, r.detail]
+  return [r.zipcode, r.oldZipcode, r.roadAddress, r.jibunAddress, r.detail, r.buildingName, r.dongText]
     .filter(Boolean)
     .join(' ')
 }
 
-/** 질의가 비면 원본 그대로, 아니면 일치 항목만 점수순(동점은 원래 순서) */
+/** 일치 품질 0~1(토큰 평균: 그대로 포함 1, 초성 0.6, 흩어진 글자 0.3). 하나라도 불일치면 0 */
+export function filterQuality(haystack: string, query: string): number {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return 1
+  const hayRaw = haystack.toLowerCase()
+  const hayCompact = hayRaw.replace(/\s+/g, '')
+  const hayCho = toChoseong(hayCompact)
+  let sum = 0
+  for (const t of tokens) {
+    if (hayRaw.includes(t)) sum += 1
+    else if (isJamoOnly(t)) {
+      if (!hayCho.includes(t)) return 0
+      sum += 0.6
+    } else {
+      if (subsequenceScore(hayCompact, t) === 0) return 0
+      sum += 0.3
+    }
+  }
+  return sum / tokens.length
+}
+
+/** 필터 일치 품질을 확장 점수에 더하는 가중치(품질 1 = 이 값만큼 가점) */
+export const FILTER_BONUS = 3
+
+/** 확장 점수(match)가 있으면 점수 + 필터 가점 순, 없으면 fuzzy 점수순. 동점은 원래 순서 */
+export function filterRanked(results: ZipcodeResult[], query: string): { result: ZipcodeResult; score?: number }[] {
+  if (!query.trim()) return results.map((result) => ({ result, score: result.match?.score }))
+  return results
+    .map((result, i) => {
+      const hay = resultHaystack(result)
+      const s = fuzzyScore(hay, query)
+      const score = result.match ? result.match.score + FILTER_BONUS * filterQuality(hay, query) : undefined
+      return { result, i, s, score }
+    })
+    .filter((x) => x.s > 0)
+    .sort((a, b) => (a.score !== undefined && b.score !== undefined ? b.score - a.score : b.s - a.s) || a.i - b.i)
+    .map(({ result, score }) => ({ result, score }))
+}
+
+/** 질의가 비면 원본 그대로, 아니면 일치 항목만 정렬해 돌려준다 */
 export function filterResults(results: ZipcodeResult[], query: string): ZipcodeResult[] {
   if (!query.trim()) return results
-  return results
-    .map((r, i) => ({ r, i, s: fuzzyScore(resultHaystack(r), query) }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s || a.i - b.i)
-    .map((x) => x.r)
+  return filterRanked(results, query).map((x) => x.result)
 }
 
 export interface Segment {

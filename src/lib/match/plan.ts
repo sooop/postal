@@ -19,8 +19,12 @@ export function buildQueries(p: ParsedInput, max = 8): string[] {
   if (p.jibun && p.emd) add(join(sgg, p.emd, p.jibun))
   if (p.core.length >= 2) {
     const pre = prefixOf(p)
+    // 시도만 있고 시군구가 없으면 시도를 붙여 조회한다(없으면 전국 결과 상위 30건 안에 해당 지역이 빠질 수 있다)
+    const sidoQ = !sgg && p.sido ? join(p.sido, p.name) : ''
+    if (!p.emd) add(sidoQ)
     add(join(p.emd, p.name))
     if (sgg) add(join(sgg, p.name))
+    else add(sidoQ)
     add(p.name)
     if (pre && pre !== p.name) { add(join(p.emd, pre)); if (sgg) add(join(sgg, pre)) }
     if (p.core.length >= 6) add(join(p.emd, p.core.slice(-4)))

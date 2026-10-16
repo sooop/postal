@@ -9,6 +9,17 @@ export function normalizeDigits(s: string): string {
     .replace(DASHES, '-')
 }
 
+// 한국 주소에 쓰지 않는 기호(쉼표·따옴표·홑따옴표·세미콜론·대괄호 등). 단어 경계를 이루므로 지우지 않고 공백으로 바꾼다.
+// 괄호 ( ), 하이픈, 물결(~, 동 범위), 슬래시, &, 가운뎃점은 주소·건물명에 쓰이므로 남긴다.
+const JUNK = /[,，、;；:：'"‘’“”`´′″<>《》〈〉「」『』[\]{}!！?？*#@^|\\=+%$]/g
+// 마침표는 숫자 사이(135.924)만 남긴다('127-2.' 의 끝 마침표가 번지를 깨지 않도록)
+const STRAY_DOT = /(?<!\d)\.|\.(?!\d)/g
+
+/** 전각 숫자·하이픈을 통일하고, 주소에 쓰지 않는 기호를 공백으로 바꿔 연속 공백을 하나로 줄인다(앞뒤 공백 제거) */
+export function cleanInput(s: string): string {
+  return normalizeDigits(s).replace(JUNK, ' ').replace(STRAY_DOT, ' ').replace(/\s+/g, ' ').trim()
+}
+
 export type InputKind = 'oldZip' | 'newZip' | 'text'
 
 export interface NormalizedInput {
@@ -24,7 +35,7 @@ export interface NormalizedInput {
  * 그 밖의 입력은 숫자·하이픈 표기만 정리해 text 로 돌려준다.
  */
 export function normalizeQuery(raw: string): NormalizedInput {
-  const s = normalizeDigits(raw).replace(/\s+/g, ' ').trim()
+  const s = cleanInput(raw)
   const old = s.match(/^(\d{3})\s?[-.\s]?\s?(\d{3})$/)
   if (old) return { query: `${old[1]}-${old[2]}`, kind: 'oldZip' }
   if (/^\d{5}$/.test(s)) return { query: s, kind: 'newZip' }

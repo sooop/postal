@@ -59,6 +59,11 @@ for (const c of CITIES) { SGG_NAMES.add(c); SGG_NAMES.add(`${c}시`) }
 for (const c of COUNTIES) { SGG_NAMES.add(c); SGG_NAMES.add(`${c}군`) }
 
 export const isSido = (t: string): boolean => SIDO_NAMES.has(t)
+/** 시도 토큰이 가리키는 시도의 정식 명칭과 줄임말 전부(예: '대구' → ['대구광역시','대구','대구시']). 시도가 아니면 빈 배열 */
+export function sidoAliases(t: string): string[] {
+  for (const [full, short] of Object.entries(SIDO)) if (t === full || short.includes(t)) return [full, ...short]
+  return []
+}
 export const isSigungu = (t: string): boolean => SGG_NAMES.has(t)
 /** 읍·면·동·리·가 로 끝나는 법정/행정 구역 이름 토큰(숫자 허용: 암사3동). 건물명은 선두 지역 토큰 뒤에서만 이 판정을 쓴다 */
 export const isEmdLike = (t: string): boolean => /^[가-힣]+\d*(읍|면|동|리)$/.test(t) || /^[가-힣]+\d+가$/.test(t)
