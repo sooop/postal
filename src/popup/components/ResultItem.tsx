@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { COPY_FORMATS, formatCopy, type CopyFormat } from '@/lib/copy'
@@ -24,7 +24,9 @@ interface ResultItemProps {
 
 export function ResultItem({ result, onCopy, isCopied, query = '', recommended = false, score, prob, format, onFormatChange }: ResultItemProps) {
   // 주소가 한 줄에서 잘렸을 때만 전체 주소 레이어를 띄운다
+  // 레이어는 fixed 로 띄워 스크롤 영역(.results)의 scrollHeight 를 늘리지 않게 한다
   const [truncated, setTruncated] = useState(false)
+  const [tipPos, setTipPos] = useState<CSSProperties>({})
   const copyAs = (f: CopyFormat) => {
     navigator.clipboard.writeText(formatCopy(f, result)).then(() => onCopy(result))
   }
@@ -64,7 +66,17 @@ export function ResultItem({ result, onCopy, isCopied, query = '', recommended =
         {/* 도로명 주소 + 건물명 */}
         <span
           className="min-w-0 flex-1 truncate text-[13px] leading-snug text-foreground"
-          onMouseEnter={(e) => setTruncated(e.currentTarget.scrollWidth > e.currentTarget.clientWidth)}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget
+            const isTruncated = el.scrollWidth > el.clientWidth
+            setTruncated(isTruncated)
+            if (!isTruncated) return
+            const rect = el.closest<HTMLElement>('[role="button"]')?.getBoundingClientRect() ?? el.getBoundingClientRect()
+            const base = { left: rect.left + 8, width: rect.width - 16 }
+            setTipPos(window.innerHeight - rect.bottom < 110
+              ? { ...base, bottom: window.innerHeight - rect.top + 2 }
+              : { ...base, top: rect.bottom + 2 })
+          }}
         >
           <Highlight text={result.roadAddress || result.jibunAddress} query={query} />
           {result.detail && (
@@ -110,7 +122,8 @@ export function ResultItem({ result, onCopy, isCopied, query = '', recommended =
       {truncated && (
         <div
           role="tooltip"
-          className="pointer-events-none absolute inset-x-2 top-full z-30 mt-0.5 hidden rounded-md border border-border bg-background px-2.5 py-2 text-[12px] leading-relaxed text-foreground opacity-0 shadow-lg transition-opacity delay-0 group-hover:block group-hover:opacity-100 group-hover:delay-500"
+          style={tipPos}
+          className="pointer-events-none fixed z-30 hidden rounded-md border border-border bg-background px-2.5 py-2 text-[12px] leading-relaxed text-foreground opacity-0 shadow-lg transition-opacity delay-0 group-hover:block group-hover:opacity-100 group-hover:delay-500"
         >
           <div className="break-keep font-medium">{result.zipcode} {result.roadAddress || result.jibunAddress}</div>
           {result.detail && <div className="break-keep text-muted-foreground">{result.detail}</div>}
