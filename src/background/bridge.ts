@@ -44,5 +44,7 @@ export function initBridge(): void {
     port.onDisconnect.addListener(() => session.dispose())
     // 앱 프레임이 연결되면 바로 판정 준비 상태를 묻는다(앱의 최초 ready 를 놓쳐도, 서비스 워커가 재시작돼도 다시 찾는다)
     decideClient.greet(session)
+    // v2: 확장도 먼저 hello 를 보낸다(앱이 v1 만 알면 source 가 달라 무시한다)
+    session.hello()
   })
 }
