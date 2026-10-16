@@ -82,6 +82,16 @@ export async function getSearch(keyword: string): Promise<SearchRecord | undefin
   })
 }
 
+export async function deleteSearch(keyword: string): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_SEARCHES, 'readwrite')
+    const req = tx.objectStore(STORE_SEARCHES).delete(keyword)
+    req.onerror = () => reject(req.error)
+    tx.oncomplete = () => { db.close(); resolve() }
+  })
+}
+
 export async function listRecent(limit = 8): Promise<string[]> {
   const records = await listRecentFull(limit)
   return records.map((r) => r.keyword)

@@ -4,6 +4,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 interface SearchBoxProps {
+  /** 검색창 입력값(이력에서 가져온 검색어도 그대로 보이도록 부모가 가진다) */
+  query: string
+  onQueryChange: (query: string) => void
   onSearch: (query: string) => void
   loading: boolean
   recent: string[]
@@ -11,8 +14,7 @@ interface SearchBoxProps {
   onClearRecent: () => void
 }
 
-export function SearchBox({ onSearch, loading, recent, onSelectRecent, onClearRecent }: SearchBoxProps) {
-  const [query, setQuery] = useState('')
+export function SearchBox({ query, onQueryChange, onSearch, loading, recent, onSelectRecent, onClearRecent }: SearchBoxProps) {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -22,7 +24,7 @@ export function SearchBox({ onSearch, loading, recent, onSelectRecent, onClearRe
   }
 
   const handleSelect = (kw: string) => {
-    setQuery(kw)
+    onQueryChange(kw)
     setOpen(false)
     onSelectRecent(kw)
   }
@@ -37,7 +39,7 @@ export function SearchBox({ onSearch, loading, recent, onSelectRecent, onClearRe
           autoFocus
           placeholder="주소 또는 지역명 입력"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => recent.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}

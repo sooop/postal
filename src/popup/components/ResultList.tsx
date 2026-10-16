@@ -3,7 +3,8 @@ import { Sparkles, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { copiedKey } from '@/lib/db'
-import { filterResults } from '@/lib/fuzzy'
+import { filterRanked } from '@/lib/fuzzy'
+import { toProbabilities } from '@/lib/match/rank'
 import type { CopyFormat } from '@/lib/copy'
 import type { ZipcodeResult } from '@/lib/search'
 import { ResultItem } from './ResultItem'
@@ -28,13 +29,16 @@ export function ResultList({
 }: ResultListProps) {
   const [filter, setFilter] = useState('')
 
-  const visible = useMemo(() => filterResults(results, filter), [results, filter])
+  // 점수가 있는 결과(입력 분석 검색)는 점수순으로 두고, 보이는 항목들 안에서 확률(%)을 계산한다
+  const visible = useMemo(() => {
+    const rows = filterRanked(results, filter)
+    const scored = rows.every((x) => x.score !== undefined)
+    const probs = scored ? toProbabilities(rows.map((x) => x.score!)) : []
+    return rows.map((x, i) => ({ result: x.result, score: x.score, prob: scored ? probs[i] : undefined }))
+  }, [results, filter])
 
   if (results.length === 0) return null
 
-  const copied = visible.filter((r) => copiedKeys.has(copiedKey(r)))
-  const rest = visible.filter((r) => !copiedKeys.has(copiedKey(r)))
-  const hasSplit = copied.length > 0 && rest.length > 0
   const filtering = filter.trim() !== ''
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -102,45 +106,20 @@ export function ResultList({
         </p>
       )}
 
-      {/* 복사한 항목 */}
-      {copied.length > 0 && (
-        <div className="flex flex-col gap-0.5 mb-1">
-          {copied.map((result) => (
-            <ResultItem
-              key={copiedKey(result)}
-              result={result}
-              onCopy={onCopy}
-              isCopied={true}
-              query={filter}
-              format={copyFormat}
-              onFormatChange={onCopyFormatChange}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* 섹션 구분 */}
-      {hasSplit && (
-        <div className="my-1.5 flex items-center gap-2">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-[11px] text-muted-foreground">기타</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-      )}
-
-      {/* 나머지 항목 */}
-      {rest.length > 0 && (
+      {visible.length > 0 && (
         <div className="flex flex-col gap-0.5">
-          {rest.map((result) => (
+          {visible.map(({ result, score, prob }) => (
             <ResultItem
               key={copiedKey(result)}
               result={result}
               onCopy={onCopy}
-              isCopied={false}
+              isCopied={copiedKeys.has(copiedKey(result))}
               query={filter}
               format={copyFormat}
               onFormatChange={onCopyFormatChange}
               recommended={!!ranked?.confident && result === results[0]}
+              score={score}
+              prob={prob}
             />
           ))}
         </div>

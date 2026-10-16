@@ -5,7 +5,7 @@ import { parseInput } from '@/lib/match/parse'
 import { shouldUseSmart } from '@/lib/match/plan'
 import { isConfident } from '@/lib/match/rank'
 import {
-  saveSearch, getSearch, listRecentFull, clearAll, pruneOld,
+  saveSearch, getSearch, deleteSearch, deleteDecision, clearPageCache, listRecentFull, clearAll, pruneOld,
   markCopied, getCopiedKeys, copiedKey, getLearned, putLearned, deleteLearned, isFresh,
   type SearchRecord,
 } from '@/lib/db'
@@ -18,6 +18,7 @@ import { SourceSwitch } from './components/SourceSwitch'
 import { DecideModal } from './components/DecideModal'
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, sanitizeSettings, type Settings } from '@/lib/settings'
 import { canDecideFrom } from '@/lib/decide'
+import { decisionKey } from '@/lib/decideCache'
 import { formatCopy } from '@/lib/copy'
 import { normalizeQuery } from '@/lib/input'
 import { isSameAddress, learnKey, upsertRecord, type LearnedRecord } from '@/lib/learn'
@@ -35,6 +36,10 @@ export function App() {
   const [searched, setSearched] = useState(false)
   const [recentItems, setRecentItems] = useState<SearchRecord[]>([])
   const [currentQuery, setCurrentQuery] = useState('')
+  /** 검색창에 보이는 입력값 */
+  const [inputQuery, setInputQuery] = useState('')
+  /** 현재 결과가 검색 이력(캐시)에서 불러온 것인지. 같은 검색어로 다시 검색하면 캐시를 버리고 새로 조회한다 */
+  const [fromHistory, setFromHistory] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [nextTargetRow, setNextTargetRow] = useState(1)
   /** 현재 결과를 가져온 조회처(더 보기는 이 조회처로 고정) */
@@ -80,6 +85,15 @@ export function App() {
     const q = normalizeQuery(query).query
     if (!q) { setError('검색어를 입력해주세요.'); return }
 
+    // 이력에서 불러온 결과를 같은 검색어로 다시 검색하면: 이력·응답 캐시·판정 기억을 지우고 새로 조회·평가한다
+    if (fromHistory && q === currentQuery) {
+      await Promise.all([
+        deleteSearch(q).catch(console.error),
+        clearPageCache().catch(console.error),
+        deleteDecision(decisionKey(q)).catch(console.error),
+      ])
+    }
+    setFromHistory(false)
     setLoading(true)
     setError(null)
     setResults([])
@@ -132,12 +146,15 @@ export function App() {
       setSource(cached.source ?? 'epost')
       setSmart(cached.results.some((r) => r.match) ? { queries: [] } : null)
       setCurrentQuery(keyword)
+      setInputQuery(keyword)
+      setFromHistory(true)
       await loadLearned(keyword)
       setSearched(true)
       setError(null)
       await saveSearch({ ...cached, updatedAt: Date.now() }).catch(console.error)
       await refreshRecent()
     } else {
+      setInputQuery(keyword)
       await handleSearch(keyword)
     }
   }
@@ -224,8 +241,8 @@ export function App() {
   const recentKeywords = recentItems.map((r) => r.keyword)
 
   return (
-    /* 팝업 루트: 폭 360px, 최대 높이 내에서 스크롤 */
-    <div className={`relative w-[360px] max-h-[580px] overflow-y-auto bg-background ${decideOpen ? 'min-h-[420px]' : ''}`}>
+    /* 팝업 루트: 폭 470px, 최대 높이 내에서 스크롤 */
+    <div className={`relative w-[470px] max-h-[580px] overflow-y-auto bg-background ${decideOpen ? 'min-h-[420px]' : ''}`}>
 
       {/* ── sticky 헤더: 타이틀 + 검색박스 ── */}
       <div className="sticky top-0 z-20 bg-background/97 backdrop-blur-sm border-b border-border px-4 pt-4 pb-3">
@@ -245,6 +262,8 @@ export function App() {
           </button>
         </div>
         <SearchBox
+          query={inputQuery}
+          onQueryChange={setInputQuery}
           onSearch={handleSearch}
           loading={loading}
           recent={recentKeywords}
@@ -268,6 +287,11 @@ export function App() {
             {results.length === 0 && !loading && (
               <p className="py-8 text-center text-[13px] text-muted-foreground">
                 검색 결과가 없습니다.
+              </p>
+            )}
+            {!loading && fromHistory && (
+              <p className="mt-3 text-[11px] text-amber-700">
+                검색 이력에서 불러온 결과입니다. 같은 검색어로 다시 검색하면 캐시를 지우고 새로 조회·평가합니다.
               </p>
             )}
             {!loading && smart && (
