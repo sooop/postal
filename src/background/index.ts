@@ -6,9 +6,11 @@ import { searchPage } from '@/lib/provider'
 import { smartSearch } from '@/lib/match/smart'
 import type { SearchMode, SearchResponse, SmartResponse } from '@/lib/search'
 import { effectiveAppUrl, loadSettings } from '@/lib/settings'
+import { initBadge } from './badge'
 import { decideClient, initBridge } from './bridge'
 import { fetchers } from './fetchers'
 
+initBadge()
 initBridge()
 
 async function handleSearch(query: string, pageIdx: number, mode: SearchMode): Promise<SearchResponse> {
