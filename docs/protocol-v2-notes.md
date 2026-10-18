@@ -22,3 +22,13 @@
 ## 앱 쪽 필요 작업
 
 앱(아티팩트)이 v2 hello 를 보내야 `call web.query` 를 쓸 수 있다. 확장은 앱이 v1 만 알아도 지장 없다(v2 hello 는 무시된다).
+
+## 허브 경유로 전환 (2026-10-18)
+
+postal 은 더 이상 아티팩트의 v2 봉투에 직접 응답하지 않는다. 같은 프레임에서 claude-ex 허브와 postal 이 둘 다 `hello_ack` 하는 공존 문제를 없애기 위해서다. 계획: `D:\projects\claude-ex\docs\plans\2026-10-18-plugin-hub.md`.
+
+- postal 은 서비스 워커가 시작될 때 허브(ID `cmnfclffoomldhdnghjbcdgednhaknho`)에 플러그인으로 등록한다(`src/plugin/`, `@claude-ex/sdk` 의 `serveAsCompanion`). 사용자가 허브 팝업에서 승인하면 허브의 `web.query@1` 에 어댑터 `epost-zip`·`juso-addr`·`zip-auto` 가 나타난다.
+- `web.query` 인자는 `{adapter, params:{searchText?, oldAddr?, oldZip?, limit?, analyze?}}` 로 바뀌었다(`limit`·`analyze` 가 `params` 안으로). 결과 data 는 `{items, lookup?}`, `meta.untrusted` 는 허브가 붙인다.
+- 허브를 거친 호출은 v1 앱 조회와 같은 큐(`src/background/runQueued.ts`, `sharedQueue.ts`)로 처리한다.
+- v1(`ping`, `lookup`, `decide`)은 그대로 직접 처리한다. 허브가 없으면 v2 는 동작하지 않는다(앱이 v2 로 옮기면 허브 필수).
+- `@claude-ex/sdk` 를 `file:../claude-ex/src/sdk` 로 참조하므로 두 저장소는 같은 상위 폴더에 둔다.
