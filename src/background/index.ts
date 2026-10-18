@@ -9,9 +9,16 @@ import { effectiveAppUrl, loadSettings } from '@/lib/settings'
 import { initBadge } from './badge'
 import { decideClient, initBridge } from './bridge'
 import { fetchers } from './fetchers'
+import { initPlugin } from '@/plugin'
+import { queue } from './sharedQueue'
 
 initBadge()
 initBridge()
+// claude-ex 허브의 동반 플러그인: 서비스 워커가 시작될 때마다 허브에 등록한다(허브가 없으면 무시)
+initPlugin(
+  { queue, fetchPage: (keyword, pageIdx, pageSize, source, signal) => fetchers[source](keyword, pageIdx, pageSize, signal), now: Date.now },
+  { version: chrome.runtime.getManifest().version },
+)
 
 async function handleSearch(query: string, pageIdx: number, mode: SearchMode): Promise<SearchResponse> {
   try {

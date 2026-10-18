@@ -3,14 +3,13 @@ import {
   BRIDGE_SOURCE, ERRORS, PORT_NAME, PROTOCOL_V,
   hasAllowedParent, isAllowedAppOrigin, isAppEnvelope,
 } from '@/lib/protocol'
-import { PROTOCOL_V2, V2_ERRORS, V2_EXT_SOURCE, isV2Envelope } from '@/lib/protocolV2'
 
 // 알려진 origin(https://claude.ai)이면 그 origin 으로만 응답한다. 불투명 origin 이면 '*' 로 대체한다.
 const targetOrigin = location.origin === 'null' ? '*' : location.origin
 
 let port: chrome.runtime.Port | null = null
-/** 진행 중인 호출 id -> 프로토콜 버전과 ns. 연결이 끊기면 버전에 맞는 봉투로 오류를 돌려준다 */
-const pendingLookups = new Map<string, { ver: 1 | 2; ns?: string }>()
+/** 진행 중인 조회 id. 연결이 끊기면 오류를 돌려준다 */
+const pendingLookups = new Set<string>()
 
 function toPage(msg: unknown) {
   window.postMessage(msg, targetOrigin)
@@ -21,7 +20,7 @@ function getPort(): chrome.runtime.Port {
   const p = chrome.runtime.connect({ name: PORT_NAME })
 
   p.onMessage.addListener((msg: { source?: string; type?: string; id?: string }) => {
-    if (msg?.source !== BRIDGE_SOURCE && msg?.source !== V2_EXT_SOURCE) return
+    if (msg?.source !== BRIDGE_SOURCE) return
     if (msg.type === 'result' && typeof msg.id === 'string') pendingLookups.delete(msg.id)
     toPage(msg)
   })
@@ -30,15 +29,8 @@ function getPort(): chrome.runtime.Port {
     port = null
     scheduleReconnect()
     // service worker 가 끊기면 진행 중이던 조회는 내부 오류로 알린다
-    for (const [id, info] of pendingLookups) {
-      if (info.ver === 2) {
-        toPage({
-          source: V2_EXT_SOURCE, v: PROTOCOL_V2, ns: info.ns ?? 'postal-converter', type: 'result', id, ok: false,
-          error: V2_ERRORS.internal('확장 연결이 끊겼습니다', 'worker_restarted'),
-        })
-      } else {
-        toPage({ source: BRIDGE_SOURCE, v: PROTOCOL_V, type: 'result', id, ok: false, error: ERRORS.internal('확장 연결이 끊겼습니다') })
-      }
+    for (const id of pendingLookups) {
+      toPage({ source: BRIDGE_SOURCE, v: PROTOCOL_V, type: 'result', id, ok: false, error: ERRORS.internal('확장 연결이 끊겼습니다') })
     }
     pendingLookups.clear()
   })
@@ -75,21 +67,9 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (!active) return
   if (event.source !== window) return
   const data = event.data
-  if (isV2Envelope(data)) {
-    if (data.type === 'call') pendingLookups.set(data.id, { ver: 2, ns: data.ns })
-    try {
-      getPort().postMessage(data)
-    } catch {
-      if (data.type === 'call') {
-        pendingLookups.delete(data.id)
-        toPage({ source: V2_EXT_SOURCE, v: PROTOCOL_V2, ns: data.ns, type: 'result', id: data.id, ok: false, error: V2_ERRORS.internal('확장과 통신할 수 없습니다') })
-      }
-    }
-    return
-  }
   if (!isAppEnvelope(data)) return
 
-  if (data.type === 'lookup') pendingLookups.set(data.id, { ver: 1 })
+  if (data.type === 'lookup') pendingLookups.add(data.id)
   try {
     getPort().postMessage(data)
   } catch {

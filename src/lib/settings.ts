@@ -36,6 +36,9 @@ const KEY = 'settings'
  */
 export const DEFAULT_APP_URL = 'https://claude.ai/artifact/7k3do6wFLMuQmzczJvb15K?sk=IwRw-2OI0xobj2zNfGEe7w'
 
+/** claude-ex 허브 확장의 고정 ID(허브 manifest 의 key 로 고정됨). 플러그인 등록·호출 연결의 상대를 이 ID 로만 인정한다 */
+export const HUB_ID = 'cmnfclffoomldhdnghjbcdgednhaknho'
+
 /** 실제로 여는 앱 주소: 설정의 오버라이드가 있으면 그것, 없으면 기본값 */
 export function effectiveAppUrl(settings: Pick<Settings, 'appUrl'>): string {
   return settings.appUrl || DEFAULT_APP_URL
