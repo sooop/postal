@@ -15,7 +15,6 @@ export interface DecideModalProps {
   /** 불러온 전체 결과(필터와 무관) */
   results: ZipcodeResult[]
   /** AI 판정 허용 여부. false 면 항상 engine:'local' */
-  aiEnabled: boolean
   /** 이 입력에 기억된 주소(있으면 후보의 prior 로 전달) */
   learned?: LearnedRecord | null
   /** 선택·복사할 때의 복사 형식 */
@@ -50,7 +49,7 @@ function chips(s?: Signals): { text: string; good: boolean }[] {
   return out
 }
 
-export function DecideModal({ query, results, aiEnabled, learned, copyFormat = 'zip', thresholds = DEFAULT_THRESHOLDS, onClose, onSelect, onOpenSettings }: DecideModalProps) {
+export function DecideModal({ query, results, learned, copyFormat = 'zip', thresholds = DEFAULT_THRESHOLDS, onClose, onSelect, onOpenSettings }: DecideModalProps) {
   const [stage, setStage] = useState<DecideStage>('connecting')
   const [outcome, setOutcome] = useState<DecideOutcome | null>(null)
   /** 저장된 판정 결과를 다시 쓰는 중이면 그 시각 */
@@ -67,7 +66,7 @@ export function DecideModal({ query, results, aiEnabled, learned, copyFormat = '
     let res: DecideOutcome
     try {
       res = await requestDecide(query, results, {
-        engine: engine ?? (aiEnabled ? undefined : 'local'),
+        engine,
         onStage: (s) => { if (runRef.current === id) setStage(s) },
         priorOf: (r) => priorFor(r, learned),
       })
@@ -80,7 +79,7 @@ export function DecideModal({ query, results, aiEnabled, learned, copyFormat = '
     setOutcome(res)
     // 성공한 판정은 검색어 단위로 기억해 두었다가 같은 후보 목록이면 다시 쓴다
     if (res.ok) void putDecision(toRecord(query, prepareCandidates(results).candidates, res.view, Date.now())).catch(console.error)
-  }, [query, results, aiEnabled, learned])
+  }, [query, results, learned])
 
   /** 같은 검색어·같은 후보 목록으로 저장된 판정이 있으면 요청 없이 보여 주고, 없으면 앱에 요청한다 */
   const start = useCallback(async () => {

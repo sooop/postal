@@ -3,10 +3,8 @@ import { isCopyFormat, type CopyFormat } from './copy'
 import type { SearchMode } from './search'
 
 export interface Settings {
-  /** 후보 판정 기능 사용(기본 꺼짐). 켜면 구주소와 후보가 앱 프레임으로 전송된다 */
+  /** 후보 판정 기능 사용(기본 켜짐). 켜면 구주소와 후보가 앱 프레임으로 전송되고 앱이 AI 에 질의할 수 있다 */
   decideEnabled: boolean
-  /** AI 판정 허용. 꺼져 있으면 항상 engine:'local' 로 요청한다 */
-  aiEnabled: boolean
   /** 입력 분석 검색에서 확실한 1순위가 없으면 판정 창을 자동으로 연다(기본 꺼짐). decideEnabled 가 켜져 있어야 한다 */
   autoDecide: boolean
   /** 앱 주소 오버라이드(빈 문자열이면 DEFAULT_APP_URL 사용) */
@@ -19,8 +17,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  decideEnabled: false,
-  aiEnabled: false,
+  decideEnabled: true,
   autoDecide: false,
   appUrl: '',
   thresholds: DEFAULT_THRESHOLDS,
@@ -34,7 +31,7 @@ const KEY = 'settings'
  * 앱 기본 주소(상수). 설정에서 비워 두면 이 값을 쓰고, 설정에 값이 있으면 그 값이 우선한다(오버라이드).
  * 아티팩트가 교체되면 이 상수만 고치면 된다. `sk` 는 비공개 아티팩트의 공유 키이므로 이 저장소를 공개하지 않는다.
  */
-export const DEFAULT_APP_URL = 'https://claude.ai/artifact/7k3do6wFLMuQmzczJvb15K?sk=IwRw-2OI0xobj2zNfGEe7w'
+export const DEFAULT_APP_URL = 'https://claude.ai/artifact/P37tXNCWGSnsr4P7j5fP2u'
 
 /** claude-ex 허브 확장의 고정 ID(허브 manifest 의 key 로 고정됨). 플러그인 등록·호출 연결의 상대를 이 ID 로만 인정한다 */
 export const HUB_ID = 'cmnfclffoomldhdnghjbcdgednhaknho'
@@ -65,8 +62,7 @@ export function sanitizeSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const th = (r.thresholds && typeof r.thresholds === 'object' ? r.thresholds : {}) as Record<string, unknown>
   return {
-    decideEnabled: r.decideEnabled === true,
-    aiEnabled: r.aiEnabled === true,
+    decideEnabled: typeof r.decideEnabled === 'boolean' ? r.decideEnabled : DEFAULT_SETTINGS.decideEnabled,
     autoDecide: r.autoDecide === true,
     appUrl: typeof r.appUrl === 'string' ? (normalizeAppUrl(r.appUrl) ?? '') : '',
     copyFormat: isCopyFormat(r.copyFormat) ? r.copyFormat : 'zip',

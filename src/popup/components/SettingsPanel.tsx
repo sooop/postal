@@ -93,28 +93,13 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
           <span className="text-[12px] font-medium text-foreground">앱 후보 판정 사용</span>
           <p className="text-[11px] leading-snug text-muted-foreground">
             구주소로 검색한 결과에서 앱이 후보별 일치 확률을 계산해 추천합니다.
-            켜면 검색한 구주소와 후보 주소가 열려 있는 앱 화면으로 전송됩니다.
+            켜면 검색한 구주소와 후보 주소가 앱 화면으로 전송되며, 앱이 Claude(AI)에 질의할 수 있습니다.
           </p>
         </div>
         <Switch
           aria-label="앱 후보 판정 사용"
           checked={settings.decideEnabled}
           onChange={(v) => void save({ decideEnabled: v })}
-        />
-      </div>
-
-      <div className={`flex items-start justify-between gap-3 ${settings.decideEnabled ? '' : 'opacity-60'}`}>
-        <div className="flex flex-col gap-1">
-          <span className="text-[12px] font-medium text-foreground">AI 판정 허용</span>
-          <p className="text-[11px] leading-snug text-muted-foreground">
-            앱이 Claude에 질의할 수 있으며 이때 주소 정보가 AI 로 전송됩니다. 끄면 앱의 로컬 계산만 사용합니다.
-          </p>
-        </div>
-        <Switch
-          aria-label="AI 판정 허용"
-          checked={settings.aiEnabled}
-          disabled={!settings.decideEnabled}
-          onChange={(v) => void save({ aiEnabled: v })}
         />
       </div>
 

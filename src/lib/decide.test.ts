@@ -87,10 +87,10 @@ describe('settings', () => {
     expect(normalizeAppUrl('https://claude.ai/chat/abc')).toBeNull()
     expect(normalizeAppUrl('javascript:alert(1)')).toBeNull()
   })
-  it('저장값이 깨져 있어도 기본값으로 복구하고 기본은 꺼짐', () => {
-    expect(sanitizeSettings(undefined)).toMatchObject({ decideEnabled: false, aiEnabled: false, appUrl: '' })
+  it('저장값이 깨져 있어도 기본값으로 복구하고 판정·AI 는 기본 켜짐, 자동 요청은 꺼짐', () => {
+    expect(sanitizeSettings(undefined)).toMatchObject({ decideEnabled: true, autoDecide: false, appUrl: '' })
     expect(sanitizeSettings({ decideEnabled: 'yes', appUrl: 'https://evil.com', thresholds: { minP: 9 } }))
-      .toMatchObject({ decideEnabled: false, appUrl: '', thresholds: { minP: 0.7, minGap: 0.2 } })
+      .toMatchObject({ decideEnabled: true, appUrl: '', thresholds: { minP: 0.7, minGap: 0.2 } })
   })
 })
 
