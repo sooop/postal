@@ -361,7 +361,6 @@ export function App() {
         <DecideModal
           query={currentQuery}
           results={results}
-          aiEnabled={settings.aiEnabled}
           learned={learned}
           copyFormat={settings.copyFormat}
           thresholds={settings.thresholds}

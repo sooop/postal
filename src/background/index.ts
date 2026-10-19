@@ -87,9 +87,9 @@ async function handleDecide(msg: Record<string, unknown>) {
     const parsed = parseDecideInput(msg)
     if (!parsed.ok) return { ok: false as const, error: parsed.error }
 
-    // 사용자가 AI 를 허용하지 않았다면 어떤 요청이든 항상 local
+    // 판정을 켜면 AI 질의가 허용된다. 요청이 local 을 지정한 경우만 로컬 계산
     const forceLocal = msg.engine === 'local'
-    const engine: DecideRequest['engine'] = !settings.aiEnabled || forceLocal ? 'local' : 'auto'
+    const engine: DecideRequest['engine'] = forceLocal ? 'local' : 'auto'
 
     // 사용자가 지금 보고 있는 탭에 앱이 열려 있으면 그것을 먼저 쓴다
     const preferTabId = await activeTabId()
